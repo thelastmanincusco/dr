@@ -27,6 +27,14 @@ def find_available_port(host: str, preferred: int) -> int:
         return int(s.getsockname()[1])
 
 
+class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
+
 def open_browser_later(url: str, delay_seconds: float = 0.8) -> None:
     """延迟打开浏览器，避免服务器尚未监听时打开失败。"""
     time.sleep(delay_seconds)
@@ -40,10 +48,10 @@ def main() -> None:
     os.chdir(web_dir)
 
     port = find_available_port(HOST, DEFAULT_PORT)
-    url = f"http://{HOST}:{port}/index.html"
+    cache_buster = int(time.time())
+    url = f"http://{HOST}:{port}/index.html?v={cache_buster}"
 
-    handler = http.server.SimpleHTTPRequestHandler
-    server = http.server.ThreadingHTTPServer((HOST, port), handler)
+    server = http.server.ThreadingHTTPServer((HOST, port), NoCacheHandler)
 
     print(f"扫雷已启动: {url}", flush=True)
     print("按 Ctrl+C 退出。", flush=True)

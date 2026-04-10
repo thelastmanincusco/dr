@@ -180,6 +180,7 @@
         <option value="beginner">初级 9×9 / 10雷</option>
         <option value="intermediate">中级 16×16 / 40雷</option>
         <option value="expert" selected>高级 16×30 / 99雷</option>
+        <option value="insane">地狱 24×40 / 200雷</option>
       </select>
     </div>
 
@@ -208,6 +209,7 @@
       beginner: { rows: 9, cols: 9, mines: 10 },
       intermediate: { rows: 16, cols: 16, mines: 40 },
       expert: { rows: 16, cols: 30, mines: 99 },
+      insane: { rows: 24, cols: 40, mines: 200 },
     };
 
     let rows = 16;
@@ -328,7 +330,11 @@
     function safeSwapMine(clickedMineCell) {
       const alternatives = board
         .flat()
-        .filter(c => !c.open && !c.flag && !c.mine && c !== clickedMineCell);
+        .filter(c => {
+          if (c === clickedMineCell || c.open || c.flag || c.mine) return false;
+          // 只在不会影响已打开数字的区域换雷，避免数字变化
+          return getNeighbors(c.r, c.c).every(n => !n.open);
+        });
 
       if (alternatives.length === 0) return false;
 
@@ -343,6 +349,13 @@
       return true;
     }
 
+    function shouldUseNoGuess(triggered) {
+      if (!noGuessEl.checked || triggered) return false;
+      const closedUnflagged = board.flat().filter(c => !c.open && !c.flag).length;
+      const remainingSafe = closedUnflagged - mines;
+      return remainingSafe <= 8;
+    }
+
     function openCell(cell, triggered = false) {
       if (gameOver || cell.open || cell.flag) return;
 
@@ -352,7 +365,7 @@
         startTimer();
       }
 
-      if (cell.mine && noGuessEl.checked) {
+      if (cell.mine && shouldUseNoGuess(triggered)) {
         safeSwapMine(cell);
       }
 
