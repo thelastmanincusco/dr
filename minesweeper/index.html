@@ -327,33 +327,129 @@
       }, 1000);
     }
 
-    function safeSwapMine(clickedMineCell) {
-      const alternatives = board
-        .flat()
-        .filter(c => {
-          if (c === clickedMineCell || c.open || c.flag || c.mine) return false;
-          // 只在不会影响已打开数字的区域换雷，避免数字变化
-          return getNeighbors(c.r, c.c).every(n => !n.open);
-        });
-
-      if (alternatives.length === 0) return false;
-
-      const target = alternatives[Math.floor(Math.random() * alternatives.length)];
-      clickedMineCell.mine = false;
-      target.mine = true;
-      recomputeValues();
-
-      for (const cell of board.flat()) {
-        if (cell.open) drawCell(cell);
-      }
-      return true;
-    }
-
     function shouldUseNoGuess(triggered) {
       if (!noGuessEl.checked || triggered) return false;
       const closedUnflagged = board.flat().filter(c => !c.open && !c.flag).length;
-      const remainingSafe = closedUnflagged - mines;
-      return remainingSafe <= 8;
+      const flags = board.flat().filter(c => c.flag).length;
+      const remainingMines = mines - flags;
+      const remainingSafe = closedUnflagged - remainingMines;
+      return remainingSafe <= 10;
+    }
+
+    function shuffleInPlace(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function tryRebuildMinesForSafeClick(clickedCell) {
+      const flags = board.flat().filter(c => c.flag).length;
+      const remainingMines = mines - flags;
+      const hidden = board.flat().filter(c => !c.open && !c.flag);
+      if (remainingMines < 0 || hidden.length === 0 || remainingMines >= hidden.length) return false;
+
+      const hiddenKey = c => `${c.r},${c.c}`;
+      const hiddenMap = new Map(hidden.map(c => [hiddenKey(c), c]));
+
+      const constraints = [];
+      const constrainedKeys = new Set();
+      for (const openCell of board.flat().filter(c => c.open && c.value > 0)) {
+        const adjacentHidden = getNeighbors(openCell.r, openCell.c).filter(n => !n.open && !n.flag);
+        if (adjacentHidden.length === 0) continue;
+        const flaggedCount = getNeighbors(openCell.r, openCell.c).filter(n => n.flag).length;
+        const need = openCell.value - flaggedCount;
+        if (need < 0 || need > adjacentHidden.length) return false;
+        const keys = adjacentHidden.map(hiddenKey);
+        keys.forEach(k => constrainedKeys.add(k));
+        constraints.push({ keys, need });
+      }
+
+      const constrained = [...constrainedKeys].map(k => hiddenMap.get(k)).filter(Boolean);
+      if (constrained.length > 20) return false;
+
+      const unconstrained = hidden.filter(c => !constrainedKeys.has(hiddenKey(c)));
+      const clickedIsUnconstrained = unconstrained.includes(clickedCell);
+      const keyToIndex = new Map(constrained.map((c, i) => [hiddenKey(c), i]));
+
+      const normalized = constraints.map(cons => ({
+        vars: cons.keys.map(k => keyToIndex.get(k)).filter(v => v !== undefined),
+        need: cons.need,
+      }));
+
+      const varToConstraints = Array.from({ length: constrained.length }, () => []);
+      normalized.forEach((cons, ci) => cons.vars.forEach(v => varToConstraints[v].push(ci)));
+
+      const assigned = Array(constrained.length).fill(-1);
+      const consAssigned = Array(normalized.length).fill(0);
+      const consUnassigned = normalized.map(c => c.vars.length);
+
+      const clickedKey = hiddenKey(clickedCell);
+      const forcedSafeIndex = keyToIndex.has(clickedKey) ? keyToIndex.get(clickedKey) : -1;
+
+      function dfs(idx, minesUsed) {
+        if (idx === constrained.length) {
+          for (let i = 0; i < normalized.length; i++) {
+            if (consAssigned[i] !== normalized[i].need) return false;
+          }
+          const left = remainingMines - minesUsed;
+          const available = unconstrained.length - (clickedIsUnconstrained ? 1 : 0);
+          return left >= 0 && left <= available;
+        }
+
+        const values = (idx === forcedSafeIndex) ? [0] : [0, 1];
+        for (const val of values) {
+          assigned[idx] = val;
+          let ok = true;
+          for (const ci of varToConstraints[idx]) {
+            consAssigned[ci] += val;
+            consUnassigned[ci] -= 1;
+            const minPossible = consAssigned[ci];
+            const maxPossible = consAssigned[ci] + consUnassigned[ci];
+            if (normalized[ci].need < minPossible || normalized[ci].need > maxPossible) {
+              ok = false;
+            }
+          }
+
+          if (ok) {
+            const used = minesUsed + val;
+            if (used <= remainingMines) {
+              if (dfs(idx + 1, used)) return true;
+            }
+          }
+
+          for (const ci of varToConstraints[idx]) {
+            consAssigned[ci] -= val;
+            consUnassigned[ci] += 1;
+          }
+          assigned[idx] = -1;
+        }
+        return false;
+      }
+
+      if (!dfs(0, 0)) return false;
+
+      for (const c of hidden) c.mine = false;
+      let placed = 0;
+      for (let i = 0; i < constrained.length; i++) {
+        if (assigned[i] === 1) {
+          constrained[i].mine = true;
+          placed += 1;
+        }
+      }
+
+      const needExtra = remainingMines - placed;
+      const freePool = unconstrained.filter(c => c !== clickedCell);
+      shuffleInPlace(freePool);
+      for (let i = 0; i < needExtra; i++) {
+        freePool[i].mine = true;
+      }
+
+      recomputeValues();
+      for (const c of board.flat()) {
+        if (c.open) drawCell(c);
+      }
+      return true;
     }
 
     function openCell(cell, triggered = false) {
@@ -366,7 +462,7 @@
       }
 
       if (cell.mine && shouldUseNoGuess(triggered)) {
-        safeSwapMine(cell);
+        tryRebuildMinesForSafeClick(cell);
       }
 
       cell.open = true;
