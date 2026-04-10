@@ -15,10 +15,15 @@ Windows-focused helper for installing **oh-my-opencode** from the upstream guide
 ### 运行方式
 
 ```bash
-python3 minesweeper/run_minesweeper.py
+python minesweeper/run_minesweeper.py
 ```
 
-运行后会自动打开浏览器并进入扫雷页面，支持：
+> Windows 下建议优先使用 `python` 或 `py`，不要强依赖 `python3` 命令。
+
+运行后会在终端打印访问地址（例如 `http://127.0.0.1:8000/index.html`），并尝试自动打开浏览器。
+如果浏览器没有自动弹出，请手动复制终端里的地址打开。
+
+支持功能：
 
 - 右键插旗
 - 左键点击数字格时，如果已标记雷数满足数字，会自动展开周围非雷格
