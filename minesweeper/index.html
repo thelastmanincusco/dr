@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>经典扫雷</title>
+  <style>
+    :root {
+      --bg: #c0c0c0;
+      --panel-light: #ffffff;
+      --panel-dark: #7b7b7b;
+      --cell: 30px;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", sans-serif;
+      background: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 12px;
+      color: #202020;
+    }
+
+    .game-wrapper {
+      background: var(--bg);
+      border-top: 4px solid var(--panel-light);
+      border-left: 4px solid var(--panel-light);
+      border-right: 4px solid var(--panel-dark);
+      border-bottom: 4px solid var(--panel-dark);
+      padding: 12px;
+      width: fit-content;
+    }
+
+    .scale-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .scale-bar select,
+    .scale-bar input {
+      font-size: 16px;
+      padding: 4px 6px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 92px 1fr 92px;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      border-top: 3px solid var(--panel-dark);
+      border-left: 3px solid var(--panel-dark);
+      border-right: 3px solid var(--panel-light);
+      border-bottom: 3px solid var(--panel-light);
+      padding: 8px;
+      background: #bdbdbd;
+    }
+
+    .display {
+      background: #120000;
+      color: #ff2f2f;
+      font-family: Consolas, "Courier New", monospace;
+      font-weight: 800;
+      font-size: 42px;
+      line-height: 1;
+      text-align: center;
+      letter-spacing: 2px;
+      padding: 3px 4px;
+      border-top: 2px solid var(--panel-dark);
+      border-left: 2px solid var(--panel-dark);
+      border-right: 2px solid var(--panel-light);
+      border-bottom: 2px solid var(--panel-light);
+      text-shadow: 0 0 3px #c40000;
+      user-select: none;
+    }
+
+    .face {
+      justify-self: center;
+      width: 50px;
+      height: 50px;
+      border-top: 3px solid var(--panel-light);
+      border-left: 3px solid var(--panel-light);
+      border-right: 3px solid var(--panel-dark);
+      border-bottom: 3px solid var(--panel-dark);
+      background: radial-gradient(circle at 30% 30%, #fff59a, #ffd63d 55%, #f4b400 100%);
+      border-radius: 10px;
+      font-size: 28px;
+      cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+
+    #board {
+      display: grid;
+      border-top: 4px solid var(--panel-dark);
+      border-left: 4px solid var(--panel-dark);
+      border-right: 4px solid var(--panel-light);
+      border-bottom: 4px solid var(--panel-light);
+      background: #bdbdbd;
+      user-select: none;
+    }
+
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 21px;
+      font-weight: 800;
+      box-sizing: border-box;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .cell.covered {
+      border-top: 3px solid var(--panel-light);
+      border-left: 3px solid var(--panel-light);
+      border-right: 3px solid var(--panel-dark);
+      border-bottom: 3px solid var(--panel-dark);
+      background: #bdbdbd;
+    }
+
+    .cell.covered.peek {
+      border-top: 2px solid #8f8f8f;
+      border-left: 2px solid #8f8f8f;
+      border-right: 2px solid #d8d8d8;
+      border-bottom: 2px solid #d8d8d8;
+      background: #b3b3b3;
+      transform: translate(1px, 1px);
+    }
+
+    .cell.open {
+      border: 1px solid #8f8f8f;
+      background: #c9c9c9;
+      cursor: default;
+    }
+
+    .controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 20px;
+    }
+
+    .controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .controls input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: #8f3dbd;
+    }
+
+    .n1 { color: #0000ff; }
+    .n2 { color: #008000; }
+    .n3 { color: #ff0000; }
+    .n4 { color: #000080; }
+    .n5 { color: #800000; }
+    .n6 { color: #008080; }
+    .n7 { color: #000000; }
+    .n8 { color: #666666; }
+  </style>
+</head>
+<body>
+  <div class="game-wrapper">
+    <div class="scale-bar">
+      <label for="scaleSelect">扫雷规模</label>
+      <select id="scaleSelect">
+        <option value="beginner">初级 9×9 / 10雷</option>
+        <option value="intermediate">中级 16×16 / 40雷</option>
+        <option value="expert" selected>高级 16×30 / 99雷</option>
+      </select>
+    </div>
+
+    <div class="topbar">
+      <div id="mineCounter" class="display">099</div>
+      <button id="newGame" class="face" title="重新开始">🙂</button>
+      <div id="timer" class="display">000</div>
+    </div>
+
+    <div id="board" aria-label="扫雷棋盘"></div>
+
+    <div class="controls">
+      <label>
+        自动标雷
+        <input id="autoFlag" type="checkbox" />
+      </label>
+      <label>
+        终局无猜
+        <input id="noGuess" type="checkbox" checked />
+      </label>
+    </div>
+  </div>
+
+  <script>
+    const LEVELS = {
+      beginner: { rows: 9, cols: 9, mines: 10 },
+      intermediate: { rows: 16, cols: 16, mines: 40 },
+      expert: { rows: 16, cols: 30, mines: 99 },
+    };
+
+    let rows = 16;
+    let cols = 30;
+    let mines = 99;
+
+    let board = [];
+    let firstClick = true;
+    let gameOver = false;
+    let timerId = null;
+    let seconds = 0;
+
+    const boardEl = document.getElementById('board');
+    const mineCounterEl = document.getElementById('mineCounter');
+    const timerEl = document.getElementById('timer');
+    const newGameBtn = document.getElementById('newGame');
+    const autoFlagEl = document.getElementById('autoFlag');
+    const noGuessEl = document.getElementById('noGuess');
+    const scaleSelectEl = document.getElementById('scaleSelect');
+
+    function applyScale(levelName) {
+      const config = LEVELS[levelName] ?? LEVELS.expert;
+      rows = config.rows;
+      cols = config.cols;
+      mines = config.mines;
+      boardEl.style.gridTemplateColumns = `repeat(${cols}, var(--cell))`;
+      initBoard();
+    }
+
+    function pad3(n) {
+      return String(Math.max(-99, Math.min(999, n))).padStart(3, '0');
+    }
+
+    function initBoard() {
+      board = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => ({
+          r,
+          c,
+          mine: false,
+          open: false,
+          flag: false,
+          value: 0,
+          el: null,
+        }))
+      );
+
+      firstClick = true;
+      gameOver = false;
+      seconds = 0;
+      clearInterval(timerId);
+      timerId = null;
+      timerEl.textContent = '000';
+      newGameBtn.textContent = '🙂';
+      render();
+      updateMineCounter();
+    }
+
+    function getNeighbors(r, c) {
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+            out.push(board[nr][nc]);
+          }
+        }
+      }
+      return out;
+    }
+
+    function recomputeValues() {
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cell = board[r][c];
+          if (cell.mine) {
+            cell.value = -1;
+            continue;
+          }
+          cell.value = getNeighbors(r, c).filter(n => n.mine).length;
+        }
+      }
+    }
+
+    function plantMines(safeR, safeC) {
+      const blocked = new Set(getNeighbors(safeR, safeC).map(n => `${n.r},${n.c}`));
+      blocked.add(`${safeR},${safeC}`);
+
+      const candidates = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const key = `${r},${c}`;
+          if (!blocked.has(key)) candidates.push(board[r][c]);
+        }
+      }
+
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+
+      candidates.slice(0, mines).forEach(cell => {
+        cell.mine = true;
+      });
+
+      recomputeValues();
+    }
+
+    function startTimer() {
+      if (timerId) return;
+      timerId = setInterval(() => {
+        seconds++;
+        timerEl.textContent = pad3(seconds);
+      }, 1000);
+    }
+
+    function safeSwapMine(clickedMineCell) {
+      const alternatives = board
+        .flat()
+        .filter(c => !c.open && !c.flag && !c.mine && c !== clickedMineCell);
+
+      if (alternatives.length === 0) return false;
+
+      const target = alternatives[Math.floor(Math.random() * alternatives.length)];
+      clickedMineCell.mine = false;
+      target.mine = true;
+      recomputeValues();
+
+      for (const cell of board.flat()) {
+        if (cell.open) drawCell(cell);
+      }
+      return true;
+    }
+
+    function openCell(cell, triggered = false) {
+      if (gameOver || cell.open || cell.flag) return;
+
+      if (firstClick) {
+        plantMines(cell.r, cell.c);
+        firstClick = false;
+        startTimer();
+      }
+
+      if (cell.mine && noGuessEl.checked) {
+        safeSwapMine(cell);
+      }
+
+      cell.open = true;
+
+      if (cell.mine) {
+        explode();
+        return;
+      }
+
+      if (cell.value === 0) {
+        expandBlank(cell);
+      }
+
+      if (!triggered) {
+        applyDeterministicHelpers();
+      }
+
+      checkWin();
+      drawCell(cell);
+    }
+
+    function toggleFlag(cell) {
+      if (gameOver || cell.open) return;
+      cell.flag = !cell.flag;
+      updateMineCounter();
+      drawCell(cell);
+      applyDeterministicHelpers();
+      checkWin();
+    }
+
+    function chord(cell) {
+      if (!cell.open || cell.value <= 0 || gameOver) return;
+      const neighbors = getNeighbors(cell.r, cell.c);
+      const flagCount = neighbors.filter(n => n.flag).length;
+      if (flagCount !== cell.value) return;
+
+      for (const neighbor of neighbors) {
+        if (!neighbor.open && !neighbor.flag) {
+          openCell(neighbor, true);
+        }
+      }
+
+      applyDeterministicHelpers();
+      checkWin();
+    }
+
+    function doubleOpen(cell) {
+      if (!cell.open || gameOver) return;
+      for (const n of getNeighbors(cell.r, cell.c)) {
+        if (!n.open && !n.flag) {
+          openCell(n, true);
+        }
+      }
+      applyDeterministicHelpers();
+      checkWin();
+    }
+
+    function applyDeterministicHelpers() {
+      let changed;
+      do {
+        changed = false;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = board[r][c];
+            if (!cell.open || cell.value === 0) continue;
+            const neighbors = getNeighbors(r, c);
+            const covered = neighbors.filter(n => !n.open && !n.flag);
+            const flagCount = neighbors.filter(n => n.flag).length;
+            const need = cell.value - flagCount;
+
+            if (need === 0 && covered.length > 0) {
+              for (const safeCell of covered) {
+                if (!safeCell.open && !safeCell.flag) {
+                  openCell(safeCell, true);
+                  changed = true;
+                }
+              }
+            }
+
+            if (autoFlagEl.checked && need > 0 && covered.length === need) {
+              for (const mineCell of covered) {
+                if (!mineCell.flag) {
+                  mineCell.flag = true;
+                  drawCell(mineCell);
+                  changed = true;
+                }
+              }
+            }
+          }
+        }
+      } while (changed && !gameOver);
+
+      updateMineCounter();
+      checkWin();
+    }
+
+    function expandBlank(start) {
+      const queue = [start];
+      const seen = new Set([`${start.r},${start.c}`]);
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        for (const n of getNeighbors(current.r, current.c)) {
+          const key = `${n.r},${n.c}`;
+          if (seen.has(key) || n.flag || n.open) continue;
+          n.open = true;
+          drawCell(n);
+          seen.add(key);
+          if (n.value === 0) {
+            queue.push(n);
+          }
+        }
+      }
+    }
+
+    function explode() {
+      gameOver = true;
+      clearInterval(timerId);
+      newGameBtn.textContent = '😵';
+      for (const cell of board.flat()) {
+        if (cell.mine) {
+          cell.open = true;
+          drawCell(cell);
+        }
+      }
+    }
+
+    function checkWin() {
+      if (gameOver) return;
+      const unopened = board.flat().filter(c => !c.open).length;
+      if (unopened === mines) {
+        gameOver = true;
+        clearInterval(timerId);
+        newGameBtn.textContent = '😎';
+        for (const cell of board.flat()) {
+          if (cell.mine) {
+            cell.flag = true;
+            drawCell(cell);
+          }
+        }
+        updateMineCounter();
+      }
+    }
+
+    function drawCell(cell) {
+      const el = cell.el;
+      el.className = 'cell';
+      el.textContent = '';
+
+      if (cell.open) {
+        el.classList.add('open');
+        if (cell.mine) {
+          el.textContent = '💣';
+        } else if (cell.value > 0) {
+          el.textContent = String(cell.value);
+          el.classList.add(`n${cell.value}`);
+        }
+      } else {
+        el.classList.add('covered');
+        if (cell.flag) {
+          el.textContent = '🚩';
+        }
+      }
+    }
+
+    function clearPeek() {
+      for (const c of board.flat()) {
+        c.el?.classList.remove('peek');
+      }
+    }
+
+    function showPeek(cell) {
+      clearPeek();
+      if (!cell.open || cell.value <= 0 || gameOver) return;
+      for (const n of getNeighbors(cell.r, cell.c)) {
+        if (!n.open && !n.flag) {
+          n.el.classList.add('peek');
+        }
+      }
+    }
+
+    function render() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cell = board[r][c];
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'cell covered';
+
+          el.addEventListener('click', () => {
+            clearPeek();
+            if (cell.open) {
+              chord(cell);
+            } else {
+              openCell(cell);
+            }
+            drawCell(cell);
+          });
+
+          el.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            clearPeek();
+            doubleOpen(cell);
+          });
+
+          el.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+              showPeek(cell);
+            }
+          });
+
+          el.addEventListener('mouseup', clearPeek);
+          el.addEventListener('mouseleave', clearPeek);
+
+          el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            clearPeek();
+            toggleFlag(cell);
+          });
+
+          cell.el = el;
+          boardEl.appendChild(el);
+          drawCell(cell);
+        }
+      }
+    }
+
+    function updateMineCounter() {
+      const flags = board.flat().filter(c => c.flag).length;
+      mineCounterEl.textContent = pad3(mines - flags);
+    }
+
+    newGameBtn.addEventListener('click', initBoard);
+    autoFlagEl.addEventListener('change', applyDeterministicHelpers);
+    noGuessEl.addEventListener('change', () => {});
+    scaleSelectEl.addEventListener('change', () => {
+      applyScale(scaleSelectEl.value);
+    });
+
+    applyScale(scaleSelectEl.value);
+  </script>
+</body>
+</html>
